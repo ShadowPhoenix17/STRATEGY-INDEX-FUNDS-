@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quant Index Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --primary: #6366f1;
+        --secondary: #a855f7;
+        --bg-dark: #0f172a;
+        --card-bg: #1e293b;
+        --text-main: #f8fafc;
+        --text-dim: #94a3b8;
+        --success: #22c55e;
+        --danger: #ef4444;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Inter", -apple-system, system-ui, sans-serif;
+      }
+
+      body {
+        background-color: var(--bg-dark);
+        color: var(--text-main);
+        padding: 2rem;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid #ffffff1a;
+        padding-bottom: 1rem;
+      }
+
+      .logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        background: linear-gradient(to right, var(--primary), var(--secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .ticker-badge {
+        background: #ffffff1a;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-weight: 600;
+        color: var(--primary);
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+      }
+
+      .stat-card {
+        background: var(--card-bg);
+        padding: 1.5rem;
+        border-radius: 1rem;
+        border: 1px solid #ffffff0d;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      }
+
+      .stat-label {
+        color: var(--text-dim);
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+        display: block;
+      }
+
+      .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+      }
+
+      .chart-container {
+        background: var(--card-bg);
+        padding: 2rem;
+        border-radius: 1rem;
+        border: 1px solid #ffffff0d;
+        margin-bottom: 1.5rem;
+      }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .signal-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+      }
+
+      .signal-buy {
+        background: #22c55e26;
+        color: var(--success);
+      }
+      .signal-sell {
+        background: #ef444426;
+        color: var(--danger);
+      }
+
+      .loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--bg-dark);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #ffffff1a;
+        border-top: 4px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loader" class="loading">
+      <div class="spinner"></div>
+    </div>
+
+    <div class="container">
+      <header>
+        <div class="logo">ANTIGRAVITY QUANT</div>
+        <div class="ticker-badge" id="ticker-name">SPY</div>
+      </header>
+
+      <main>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">CAGR</span>
+            <span class="stat-value" id="stat-cagr">--</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Sharpe Ratio</span>
+            <span class="stat-value" id="stat-sharpe">--</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Max Drawdown</span>
+            <span
+              class="stat-value"
+              id="stat-maxdd"
+              style="color: var(--danger)"
+              >--</span
+            >
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Beta</span>
+            <span class="stat-value" id="stat-beta">--</span>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <div class="chart-header">
+            <span class="chart-title">Equity Curve (Log Scale)</span>
+            <div id="signal-badge" class="signal-indicator">
+              <i class="fas fa-circle"></i>
+              <span id="signal-text">--</span>
+            </div>
+          </div>
+          <canvas id="equityChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+          <div class="chart-header">
+            <span class="chart-title">Volatilidad Pronosticada (GARCH)</span>
+          </div>
+          <canvas id="volChart"></canvas>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      async function fetchData() {
+        try {
+          const response = await fetch("/api/data/SPY");
+          const data = await response.json();
+
+          updateStats(data);
+          renderEquityChart(data);
+          renderVolChart(data);
+
+          document.getElementById("loader").style.display = "none";
+        } catch (error) {
+          console.error("Error fetching data:", error);
+        }
+      }
+
+      function updateStats(data) {
+        document.getElementById("stat-cagr").innerText = data.metrics.cagr;
+        document.getElementById("stat-sharpe").innerText = data.metrics.sharpe;
+        document.getElementById("stat-maxdd").innerText = data.metrics.max_dd;
+        document.getElementById("stat-beta").innerText = data.metrics.beta;
+        document.getElementById("ticker-name").innerText = data.ticker;
+
+        const signalText = document.getElementById("signal-text");
+        const signalBadge = document.getElementById("signal-badge");
+        signalText.innerText = data.current_signal;
+
+        if (data.current_signal === "BUY") {
+          signalBadge.className = "signal-indicator signal-buy";
+        } else {
+          signalBadge.className = "signal-indicator signal-sell";
+        }
+      }
+
+      function renderEquityChart(data) {
+        const ctx = document.getElementById("equityChart").getContext("2d");
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: data.dates,
+            datasets: [
+              {
+                label: "Estrategia Quant",
+                data: data.equity_curve,
+                borderColor: "#6366f1",
+                borderWidth: 2,
+                fill: false,
+                pointRadius: 0,
+              },
+              {
+                label: "Benchmark (SPY)",
+                data: data.benchmark,
+                borderColor: "#94a3b8",
+                borderWidth: 1,
+                borderDash: [5, 5],
+                fill: false,
+                pointRadius: 0,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                type: "logarithmic",
+                grid: { color: "#ffffff1a" },
+                ticks: { color: "#94a3b8" },
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: "#94a3b8", maxRotation: 0 },
+              },
+            },
+            plugins: {
+              legend: { labels: { color: "white" } },
+            },
+          },
+        });
+      }
+
+      function renderVolChart(data) {
+        const ctx = document.getElementById("volChart").getContext("2d");
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: data.dates,
+            datasets: [
+              {
+                label: "Volatilidad Anualizada (%)",
+                data: data.volatility,
+                borderColor: "#a855f7",
+                borderWidth: 1,
+                backgroundColor: "rgba(168, 85, 247, 0.1)",
+                fill: true,
+                pointRadius: 0,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                grid: { color: "#ffffff1a" },
+                ticks: { color: "#94a3b8" },
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: "#94a3b8", maxRotation: 0 },
+              },
+            },
+            plugins: {
+              legend: { labels: { color: "white" } },
+            },
+          },
+        });
+      }
+
+      fetchData();
+    </script>
+  </body>
+</html>
